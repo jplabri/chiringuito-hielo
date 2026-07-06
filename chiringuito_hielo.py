@@ -308,9 +308,11 @@ const btnNivel2 = document.getElementById("btnNivel2");
 const btnNivel3 = document.getElementById("btnNivel3");
 
 function objetivoNivel() {
-    if (nivel === 1) return 25;
-    if (nivel === 2) return 38;
-    return 55;
+    // Ahora el objetivo cuenta VASOS COMPLETOS, no impactos sueltos.
+    // Cada vaso necesita 3 cubitos, así que estos niveles duran más y avanzan de forma clara.
+    if (nivel === 1) return 9;
+    if (nivel === 2) return 14;
+    return 20;
 }
 
 function pintarBotonesNivel() {
@@ -862,26 +864,26 @@ function actualizar() {
 
     cubitos.forEach(c => {
         soles.forEach(s => {
-            if (colision(c, s)) {
+            if (!c.muerto && colision(c, s)) {
                 c.muerto = true;
                 s.muerto = true;
                 crearSalpicadura(c.x, c.y, "#ffffff");
             }
         });
         vasos.forEach(v => {
-            if (colision(c, v)) {
+            if (!c.muerto && colision(c, v)) {
                 c.muerto = true;
                 v.lleno++;
                 puntos++;
-                puntosNivel++;
                 crearSalpicadura(c.x + 9, c.y + 9, "#bff7ff");
                 if (v.lleno >= 3) {
+                    puntosNivel++;
                     puntos += 2;
                     crearSalpicadura(v.x + 24, v.y + 20, v.color);
                     v.x = 130 + Math.random() * 760;
                     v.y = 240 + Math.random() * 80;
                     v.lleno = 0;
-                    if (Math.random() < 0.28) crearVaso(false);
+                    if (Math.random() < 0.22 && vasos.length < 13) crearVaso(false);
                 }
             }
         });
