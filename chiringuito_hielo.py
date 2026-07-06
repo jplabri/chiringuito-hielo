@@ -44,6 +44,20 @@ h1 {
 
 st.title("🧊 Cubitos al Chiringuito")
 
+st.markdown(
+    """
+    <div style="
+        text-align:center;
+        color:#0b6fa4;
+        font-size:16px;
+        font-weight:bold;
+        margin-bottom:10px;">
+        Desarrollado por Jesús Platero
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
 components.html("""
 <style>
 html, body {
@@ -294,9 +308,9 @@ const btnNivel2 = document.getElementById("btnNivel2");
 const btnNivel3 = document.getElementById("btnNivel3");
 
 function objetivoNivel() {
-    if (nivel === 1) return 18;
-    if (nivel === 2) return 28;
-    return 40;
+    if (nivel === 1) return 25;
+    if (nivel === 2) return 38;
+    return 55;
 }
 
 function pintarBotonesNivel() {
@@ -317,24 +331,57 @@ btnNivel2.addEventListener("click", () => elegirNivel(2));
 btnNivel3.addEventListener("click", () => elegirNivel(3));
 pintarBotonesNivel();
 
-function sonido(freq=520, tipo="sine", dur=0.06, vol=0.06) {
+let audioCtx = null;
+
+function obtenerAudioCtx() {
     try {
         const AudioCtx = window.AudioContext || window.webkitAudioContext;
-        if (!AudioCtx) return;
-        const audio = new AudioCtx();
+        if (!AudioCtx) return null;
+
+        if (!audioCtx) {
+            audioCtx = new AudioCtx();
+        }
+
+        if (audioCtx.state === "suspended") {
+            audioCtx.resume();
+        }
+
+        return audioCtx;
+    } catch (err) {
+        return null;
+    }
+}
+
+function sonido(freq=520, tipo="sine", dur=0.06, vol=0.06) {
+    try {
+        const audio = obtenerAudioCtx();
+        if (!audio) return;
+
         const osc = audio.createOscillator();
         const gain = audio.createGain();
+
         osc.type = tipo;
         osc.frequency.value = freq;
+
         osc.connect(gain);
         gain.connect(audio.destination);
-        gain.gain.setValueAtTime(0.001, audio.currentTime);
-        gain.gain.exponentialRampToValueAtTime(vol, audio.currentTime + 0.01);
-        gain.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + dur);
-        osc.start(audio.currentTime);
-        osc.stop(audio.currentTime + dur + 0.02);
+
+        const t = audio.currentTime;
+
+        gain.gain.setValueAtTime(0.001, t);
+        gain.gain.exponentialRampToValueAtTime(vol, t + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+
+        osc.start(t);
+        osc.stop(t + dur + 0.02);
     } catch (err) {}
 }
+
+["click", "touchstart", "keydown"].forEach(ev => {
+    window.addEventListener(ev, () => {
+        obtenerAudioCtx();
+    }, {once:true, passive:false});
+});
 
 function guardarRecord() {
     const anterior = Number(localStorage.getItem("cubitos_chiringuito_record") || 0);
@@ -425,8 +472,8 @@ function crearVaso(inicial=false) {
 }
 
 function lanzarCubito() {
-    sonido(820, "triangle", 0.055, 0.07);
     if (estado !== "jugando") return;
+    sonido(820, "triangle", 0.055, 0.07);
     const viento = rafagas * 0.28;
     if (doble) {
         cubitos.push({x: jugador.x + 13, y: jugador.y - 12, w: 18, h: 18, vx: -0.6 + viento, vy: -10.5, giro: 0});
