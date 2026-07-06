@@ -284,9 +284,15 @@ let record = Number(localStorage.getItem("cubitos_chiringuito_record") || 0);
 let esNuevoRecord = false;
 let teclas = {};
 let rafagas = 0;
+let rafagaHasta = 0;
 let doble = false;
 let dobleHasta = 0;
 let mensajeNivel = "";
+let mensajeFinal = "";
+let causaDerrota = "";
+let avisoVida = "";
+let avisoVidaHasta = 0;
+let invulnerableHasta = 0;
 let frame = 0;
 
 let jugador = {x: 470, y: 482, w: 58, h: 50, vel: 8};
@@ -308,11 +314,36 @@ const btnNivel2 = document.getElementById("btnNivel2");
 const btnNivel3 = document.getElementById("btnNivel3");
 
 function objetivoNivel() {
-    // Ahora el objetivo cuenta VASOS COMPLETOS, no impactos sueltos.
-    // Cada vaso necesita 3 cubitos, así que estos niveles duran más y avanzan de forma clara.
+    // El objetivo cuenta VASOS COMPLETOS, no impactos sueltos.
+    // Cada vaso necesita 3 cubitos. Así los niveles duran más y avanzan claro.
+    if (nivel === 1) return 8;
+    if (nivel === 2) return 13;
+    return 18;
+}
+
+function maxVasosNivel() {
     if (nivel === 1) return 9;
-    if (nivel === 2) return 14;
-    return 20;
+    if (nivel === 2) return 11;
+    return 13;
+}
+
+function perderVida(causa) {
+    if (Date.now() < invulnerableHasta) return;
+    vidas--;
+    invulnerableHasta = Date.now() + 650;
+
+    if (causa === "sol") {
+        causaDerrota = "sol";
+        avisoVida = "☀️ ¡Te quemó el sol! -1 vida";
+        mensajeFinal = "☀️ EL SOL DERRITIÓ EL CHIRINGUITO";
+    } else {
+        causaDerrota = "vasos";
+        avisoVida = "🍹 Un vaso llegó sin hielo -1 vida";
+        mensajeFinal = "🍹 LOS CLIENTES SE QUEDARON SIN HIELO";
+    }
+
+    avisoVidaHasta = Date.now() + 1200;
+    sonido(causa === "sol" ? 160 : 220, "sawtooth", 0.10, 0.055);
 }
 
 function pintarBotonesNivel() {
@@ -404,9 +435,15 @@ function nuevaPartida(nivelInicial=1) {
     vidas = 5;
     nivel = nivelInicial;
     rafagas = 0;
+    rafagaHasta = 0;
     doble = false;
     dobleHasta = 0;
     esNuevoRecord = false;
+    mensajeFinal = "";
+    causaDerrota = "";
+    avisoVida = "";
+    avisoVidaHasta = 0;
+    invulnerableHasta = 0;
     jugador.x = 470;
     reiniciarNivel();
     enfocarCanvas();
@@ -418,8 +455,14 @@ function volverAlMenu() {
     puntosNivel = 0;
     vidas = 5;
     rafagas = 0;
+    rafagaHasta = 0;
     doble = false;
     dobleHasta = 0;
+    mensajeFinal = "";
+    causaDerrota = "";
+    avisoVida = "";
+    avisoVidaHasta = 0;
+    invulnerableHasta = 0;
     cubitos = [];
     vasos = [];
     soles = [];
@@ -440,8 +483,12 @@ function pasarAlSiguienteNivel() {
     nivel++;
     puntosNivel = 0;
     rafagas = 0;
+    rafagaHasta = 0;
     doble = false;
     dobleHasta = 0;
+    avisoVida = "";
+    avisoVidaHasta = 0;
+    invulnerableHasta = 0;
     estado = "jugando";
     reiniciarNivel();
     enfocarCanvas();
@@ -649,6 +696,7 @@ function dibujarPalmera(x, y, s, lado) {
 }
 
 function dibujarCamarero() {
+    if (Date.now() < invulnerableHasta && Math.floor(frame / 5) % 2 === 0) return;
     const x = jugador.x;
     const y = jugador.y;
     ctx.fillStyle = "#f2bf92";
@@ -812,10 +860,12 @@ function actualizar() {
 
     if (doble && Date.now() > dobleHasta) doble = false;
 
-    if (Math.random() < (nivel === 1 ? 0.006 : nivel === 2 ? 0.011 : 0.017)) {
+    if (rafagas !== 0 && Date.now() > rafagaHasta) rafagas = 0;
+
+    if (rafagas === 0 && Math.random() < (nivel === 1 ? 0.004 : nivel === 2 ? 0.007 : 0.010)) {
         const dir = Math.random() < 0.5 ? -1 : 1;
-        rafagas = dir * (nivel === 1 ? 2.0 : nivel === 2 ? 3.0 : 4.2);
-        setTimeout(() => { rafagas = 0; }, 1200 + Math.random() * 800);
+        rafagas = dir * (nivel === 1 ? 1.7 : nivel === 2 ? 2.5 : 3.4);
+        rafagaHasta = Date.now() + 1000 + Math.random() * 700;
     }
 
     cubitos.forEach(c => {
@@ -833,7 +883,7 @@ function actualizar() {
             v.y += nivel === 1 ? 5 : nivel === 2 ? 7 : 9;
         }
         if (v.y > 382) {
-            vidas--;
+            perderVida("vasos");
             v.x = 130 + Math.random() * 760;
             v.y = 245;
             v.lleno = 0;
@@ -844,12 +894,12 @@ function actualizar() {
     if (Math.random() < probSol) soles.push({x: 120 + Math.random() * 760, y: 60, w: 36, h: 36, vy: 2 + nivel * 0.6});
     soles.forEach(s => s.y += s.vy);
     soles = soles.filter(s => {
-        if (colision(s, jugador)) { vidas--; sonido(160, "sawtooth", 0.08, 0.05); return false; }
+        if (colision(s, jugador)) { perderVida("sol"); return false; }
         return s.y < H;
     });
 
-    if (Math.random() < 0.0035) limones.push({x: 120 + Math.random() * 760, y: 80, w: 32, h: 32, vy: 2.2});
-    if (Math.random() < 0.0025) congeladores.push({x: 120 + Math.random() * 760, y: 80, w: 32, h: 32, vy: 2.2});
+    if (Math.random() < 0.0042) limones.push({x: 120 + Math.random() * 760, y: 80, w: 32, h: 32, vy: 2.2});
+    if (Math.random() < 0.0030) congeladores.push({x: 120 + Math.random() * 760, y: 80, w: 32, h: 32, vy: 2.2});
     limones.forEach(b => b.y += b.vy);
     congeladores.forEach(b => b.y += b.vy);
 
@@ -883,7 +933,7 @@ function actualizar() {
                     v.x = 130 + Math.random() * 760;
                     v.y = 240 + Math.random() * 80;
                     v.lleno = 0;
-                    if (Math.random() < 0.22 && vasos.length < 13) crearVaso(false);
+                    if (Math.random() < 0.18 && vasos.length < maxVasosNivel()) crearVaso(false);
                 }
             }
         });
@@ -894,6 +944,8 @@ function actualizar() {
 
     if (vidas <= 0) {
         guardarRecord();
+        if (!mensajeFinal) mensajeFinal = "🧊 SE ACABARON LOS CUBITOS";
+        crearConfeti();
         estado = "fin";
         return;
     }
@@ -931,6 +983,12 @@ function dibujarHUD() {
         ctx.fillStyle = "#075c7d";
         ctx.fillText(rafagas > 0 ? "🌬️ Viento →" : "🌬️ Viento ←", 870, 66);
     }
+    if (avisoVida && Date.now() < avisoVidaHasta) {
+        ctx.textAlign = "center";
+        ctx.fillStyle = "#d87800";
+        ctx.font = "bold 24px Trebuchet MS, Verdana, Arial";
+        ctx.fillText(avisoVida, W / 2, 96);
+    }
 }
 
 function dibujarMenu() {
@@ -943,7 +1001,7 @@ function dibujarMenu() {
     texto("1  Brisa suave: vasos lentos y poco sol", 302, "#063f5e", 21);
     texto("2  Mediodía: más viento y más calor", 337, "#063f5e", 21);
     texto("3  Agosto infernal: chiringuito a tope", 372, "#063f5e", 21);
-    texto("Soles derriten cubitos. El viento desvía el tiro.", 414, "#d87800", 21, true);
+    texto("Pierdes vida si te toca el sol o si un vaso llega sin hielo.", 414, "#d87800", 20, true);
     texto("ENTER PARA COMENZAR", 516, "#20ad6b", 30, true);
 }
 
@@ -975,7 +1033,7 @@ function dibujarFinal() {
     dibujarParticulas();
     cajaTexto(175, 165, 650, 250, "rgba(255,248,215,0.95)", "#075c7d");
     if (estado === "fin") {
-        texto("SE DERRITIÓ EL CHIRINGUITO", 240, "#d87800", 37, true);
+        texto(mensajeFinal || "🧊 SE ACABARON LOS CUBITOS", 240, "#d87800", 34, true);
     } else {
         texto("🏖️ ¡VERANO REFRESCADO! 🏖️", 240, "#20ad6b", 39, true);
     }
